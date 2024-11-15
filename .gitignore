@@ -1,5 +1,6 @@
-# Ignore folders
-log/
+# Ignore log files
+logs/logs/*.log
+logs/conversation/*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

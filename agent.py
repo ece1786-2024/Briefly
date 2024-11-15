@@ -18,23 +18,29 @@ class Agent: # Base agent class
 
     def __init__(self, name):
         self.name = name
-
-        os.makedirs(Agent.log_folder, exist_ok=True)
-        os.makedirs(Agent.conversation_folder, exist_ok=True)
-
+        self.logger = logging.getLogger("agent")
+        self.configure_logger() # Initialize logger for debugging
+        
         # Initialize session-specific conversation log if not already set
         if Agent.session_id is None:
-            Agent.session_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            Agent.conversation_log = os.path.join(Agent.conversation_folder, f"conversation_log_{Agent.session_id}.csv")
-            with open(Agent.conversation_log, mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(["Timestamp", "Agent", "Role", "Message"])
+            self.reset()
 
-        # Initialize logger for debugging
-        self.logger = logging.getLogger("agent")
-        self.configure_logger()
+    @staticmethod
+    def reset(): # Reset session ID and reinitializes log
+        Agent.session_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        Agent.conversation_log = os.path.join(Agent.conversation_folder, f"conversation_log_{Agent.session_id}.csv")
+        os.makedirs(Agent.conversation_folder, exist_ok=True)
+        with open(Agent.conversation_log, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Timestamp", "Agent", "Role", "Message"])
 
-    def configure_logger(self): # debug logging code generated using chatgpt, need to check it works lol
+        # Log new session
+        logger = logging.getLogger("agent")
+        logger.info(f"--- New Session Started: {Agent.session_id} ---")
+
+    def configure_logger(self): # Configure logging
+        os.makedirs(Agent.log_folder, exist_ok=True)
+        
         if not self.logger.hasHandlers():
             # Set logging level and define the log format
             self.logger.setLevel(logging.DEBUG)
@@ -51,16 +57,13 @@ class Agent: # Base agent class
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
 
-            self.logger.info(f"--- New Session Started: {Agent.session_id} ---")
-
-    def log_conversation(self, role, message):
-        # Append conversation log
+    def log_conversation(self, role, message): # Append conversation log
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(Agent.conversation_log, mode='a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow([timestamp, self.name, role, message])
 
-    def call_api(self, sys_msg, usr_msg):
+    def call_api(self, sys_msg, usr_msg): # Calls openAI API
         try:
             response = openai.chat.completions.create(
                 model="gpt-4o",
@@ -102,9 +105,10 @@ class SummarizationAgent(Agent): # Summarization Agent
             self.logger.debug("Refining summary based on feedback...")
             sys_msg = (
                 "You are a summarization agent who summarizes a news article based on feedback about previous summaries."
-                "You should use the feedback to produce a more relevant summary. The summary should be three sentences long."
+                "You should use the feedback to produce a more relevant summary. The summary should be three sentences long. Try to include facts from the article."
             )
-            usr_msg = f"Generate a summary taking into account this feedback: {feedback}"
+            # Try to include facts from the article. -- remove if want more speculative/inferred response and less factual
+            usr_msg = f"Generate a summary on the following  by taking into account this feedback: \n {feedback}.  \nArticle: \n {article}"
         else: # Initial zero-shot summary
             self.logger.debug("Generating initial summary...")
             sys_msg = "You are a summarization agent who summarizes news articles in three sentences."
@@ -118,8 +122,6 @@ class SummarizationAgent(Agent): # Summarization Agent
             self.logger.error("Failed to generate summary.")
         
         return summary
-
-#################################################   WIP    #################################################
 
 class PersonalizationAgent(Agent): # Personalization Agent
     def __init__(self, profile):
@@ -145,10 +147,11 @@ class PersonalizationAgent(Agent): # Personalization Agent
         sys_msg = (
             "You are a personalization assistant who provides feedback to tailor an article summary "
             "based on the user's background knowledge and familiarity level."
-            "Suggest whether the user would need more context, less context, or if the summary is appropriate as is. "
-            "Provide specific feedback on which details to add or remove."
-            "The feedback should not diverge from the context of a summary."
-            "We're tailoring the summary to the user's knowledge level."
+            "We're tailoring the summary to the user's knowledge level, not interpreting or analyzing the article."
+            "The feedback should not diverge from the context of a summary.\n"
+            "Please do the following: "
+            "\n 1. Suggest whether the user would need more context, less context, or if the summary is appropriate as is and why."
+            "\n 2. Provide itemized specific feedback on which details to add or remove."
         )
         usr_msg = (
             f"Based on this persona: '{self.persona}', analyze the following summary: '{summary}' and provide feedback. "
@@ -161,7 +164,9 @@ class PersonalizationAgent(Agent): # Personalization Agent
         # Generate and return feedback based on the summary produced by Summarization Agent
         feedback = self.generate_feedback(summary)
         return feedback
-    
+
+#################################################   WIP    #################################################
+
 class ArbiterAgent(Agent): # Arbiter Agent
     def __init__(self):
         super().__init__("Arbiter Agent")
@@ -173,22 +178,23 @@ class ArbiterAgent(Agent): # Arbiter Agent
     def check_truth(self, article, summary):
         # Check for preservation of truth/facts
         sys_msg = (
-            "You are an assistant that evaluates whether a summary preserves the key information from an article. "
-            "If the summary is accurate and reflects the main points of the article, respond with 'Truth preserved'. "
-            "If there are inaccuracies or missing information, explain what is incorrect or missing."
+            "You are an assistant that evaluates whether a summary preserves the key information from an article. Please do the following: \n"
+            "1. If the summary is accurate and reflects the main points of the article, respond with 'Arbiter=1'. Otherwise 'Arbiter=0'\n"
+            "2. If there are inaccuracies, explain what is incorrect.\n"
+            "It is okay if the article adds or removes context regarding topics in the article. It doesn't have to be perfect, allow some flexibility."
         )
-        
+        # "2. If there are inaccuracies or missing information, explain what is incorrect or missing.\n"
         usr_msg = (
             f"Here is the original article:\n\n{article}\n\n"
             f"Here is the summary:\n\n{summary}\n\n"
-            "Please determine if the summary accurately represents the article. Highlight any inaccuracies."
+            "Please check the summary given the article."
         )
 
         try:
             response = self.call_api(sys_msg, usr_msg)
-            self.logger.info("Summary verification response: %s", response)
-            if "Truth preserved" in response:
-                return True, "Truth preserved"
+
+            if 'Arbiter=1' in response:
+                return True, "Acceptable"
             else:
                 return False, response
         except Exception as e:
@@ -207,10 +213,10 @@ class ArbiterAgent(Agent): # Arbiter Agent
         for summary in reversed(summaries):
             is_accurate, feedback = self.check_truth(article, summary)
             if is_accurate:
-                self.logger.info("Final summary accepted.")
+                self.logger.info("Summary accepted.")
                 return summary
             else:
                 self.logger.warning("Summary needs revision: %s", feedback)
         
-        self.logger.warning("No acceptable summary found. Reverting to last generated summary.")
-        return summaries[-1] if summaries else None
+        self.logger.warning("No acceptable summary found. Reverting to zero-shot summary.")
+        return summaries[0] if summaries else None
