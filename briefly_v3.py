@@ -32,7 +32,7 @@ def extract_known_information(final_summary, curr_knowledge, article_content, mo
     # Ask the Personalization Agent to identify known topics based on the summary
     extraction_prompt = (
         f"Known information from the user includes:\n{curr_knowledge}\n\n"
-        "Please identify any new topics or details in the summary that are not part of the known information based on user's interests which is indicated in curr_knowledge."
+        "Please identify any new topics or details in the summary that are not part of the known information based on user's interests which is indicated on Known information."
         "List keywords separated by semicolons and be consice."
         "In your response, just list the keywords."
     )
