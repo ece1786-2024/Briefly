@@ -173,7 +173,7 @@ def agent_conversation(df_article, articledb, num_iterations, summary_agent, per
     # Convert the 2D list to a DataFrame
     columns_feedback = ['conversation_id', 'persona_id', 'article_id', 'Title', 'summary', 'feedback']
     df_feedback = pd.DataFrame(data_feedback, columns=columns_feedback)
-    df_feedback.to_csv(f'results/feedback_{summary_agent}_{persona}_{articledb}.csv', index=False, encoding='ISO-8859-1')
+    df_feedback.to_csv(f'results/feedback_{summary_agent}_{persona}_{articledb}.csv', index=False)
 
     # Overwrite the original df_agent with updated knowledge
     df_agent.to_csv('data/agents.csv', index=False, encoding='ISO-8859-1')
