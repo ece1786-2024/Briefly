@@ -1,7 +1,8 @@
 import openai
 import pandas as pd
+import os
 
-def agent_turn(system_prompt, conversation_history, article_content, model_nm="gpt-3.5-turbo", num_prev_msgs=1):
+def agent_turn(system_prompt, conversation_history, article_content, model_nm="gpt-4o-mini", num_prev_msgs=1):
     """
     Generates a response from an agent, only aware of the article content and the last 'num_prev_msgs' messages.
     """
@@ -22,7 +23,7 @@ def agent_turn(system_prompt, conversation_history, article_content, model_nm="g
 
     return assistant_reply['content']
 
-def extract_known_information(final_summary, curr_knowledge, article_content, model_nm="gpt-3.5-turbo"):
+def extract_known_information(final_summary, curr_knowledge, article_content, model_nm="gpt-4o-mini"):
     """
     Use the Personalization Agent to identify known information in the final summary.
     """
@@ -73,7 +74,7 @@ def update_agent_knowledge(df_agent, agent_id, known_info):
     updated_knowledge = current_knowledge + "; " + known_info if current_knowledge else known_info
     df_agent.loc[df_agent['agent_id'] == agent_id, 'knowledge'] = updated_knowledge
 
-def agent_conversation(df_article, articledb, num_iterations, summary_agent, persona, model_nm="gpt-3.5-turbo"):
+def agent_conversation(df_article, articledb, num_iterations, summary_agent, persona, model_nm="gpt-4o-mini"):
     # Load agent prompts and knowledge from the original CSV file
     df_agent = pd.read_csv('data/agents.csv', encoding='ISO-8859-1')
 
@@ -181,20 +182,18 @@ def agent_conversation(df_article, articledb, num_iterations, summary_agent, per
     return df_feedback[df_feedback['conversation_id'] == ids]["summary"], df_feedback
 
 if __name__ == "__main__":
-    with open('../open_ai_api_key.txt', 'r') as file:
-        api_key = file.readline().strip()
-    openai.api_key = api_key
+    openai.api_key = os.environ["OPENAI_API_KEY"]
 
     df_article_tech = pd.read_csv('data/tech_articles.csv')
     df_article_tech = df_article_tech.rename(columns={'ID': 'article_id'})
 
-    EV_article = df_article_tech[df_article_tech["Title"] == "Opinion: Canada must look beyond EV tariffs and force China to play by global trade rules"]#"Opinion: Chinese EVs aren’t just an economic threat – they are a security risk"]#"Would you buy an affordable EV made in China?"]
+    #EV_article = df_article_tech[df_article_tech["Title"] == "Opinion: Canada must look beyond EV tariffs and force China to play by global trade rules"]#"Opinion: Chinese EVs aren’t just an economic threat – they are a security risk"]#"Would you buy an affordable EV made in China?"]
 
     final_summaries, df_feedback = agent_conversation(
-        df_article=EV_article,
-        articledb="Ev_article_test_knowledge_extend",
+        df_article=df_article_tech,
+        articledb="tech_article_all",
         num_iterations=3,
         summary_agent='sa9',
         persona='jc7',
-        model_nm="gpt-3.5-turbo"
+        model_nm="gpt-4o-mini"
     )
