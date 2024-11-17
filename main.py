@@ -2,7 +2,7 @@ import openai
 import re
 
 # Replace with your OpenAI API key
-openai.api_key = 'sk-hK6R3YBqSo1uP8uqnv29JqcmVqP76TTxlvVL1qDePTT3BlbkFJW6t0tVuTyM4ts9S6COIi1_vBMp4XU3q7OM75SQnJsA'
+#openai.api_key = ''
 
 
 def create_summary(summarized_article, knowledge_base, instruction):
