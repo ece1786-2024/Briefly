@@ -197,6 +197,42 @@ class PersonalizationAgent(Agent): # Personalization Agent
         feedback = self.call_api(sys_msg, usr_msg)
         self.logger.info(f"Generated feedback: {feedback}")
         return feedback
+    
+    def extract_known_information(self,final_summary):
+        # Use the Personalization Agent to identify known information in the final summary.
+        """
+        Use the Personalization Agent to identify known information in the final summary.
+        """
+        # Initialize conversation history with the final summary
+        message = [{"role": "assistant", "content": final_summary}]
+
+        # Ask the Personalization Agent to identify known topics based on the summary
+        extraction_prompt = (
+            f"Known information from the user includes:\n{self.profile}\n\n"
+            "Please identify any new topics or details in the summary that are not part of the known information based on user's interests which is indicated on Known information."
+            "List keywords separated by semicolons and be consice."
+            "In your response, just list the keywords."
+        )
+        known_info_response = self.call_api(_, message)
+
+        return known_info_response
+
+
+    def update_profile(self):
+        """
+        Update the Personalization Agent's prompt with the known information.
+        """
+        if pd.isna(known_information) or not known_information.strip():
+            updated_prompt = original_prompt
+        else:
+            updated_prompt = (
+                f"{original_prompt}\n\n"
+                f"Known information from the user includes:\n{known_information}\n\n"
+                "Please focus your feedback on any additional details or gaps not covered by this information."
+            )
+        return updated_prompt
+    
+    
 
     def process(self, summary):
         # Generate and return feedback based on the summary produced by Summarization Agent
