@@ -4,6 +4,7 @@ import logging
 import datetime
 import csv
 import json
+import warnings
 
 from sympy import per
 
@@ -311,6 +312,8 @@ class ArbiterAgent(Agent): # Arbiter Agent
         except Exception as e:
             self.logger.error(f"Error in summary verification: {e}")
             return False, "Error during verification"
+    
+    @DeprecationWarning
     def _update_profile(self, profile, keyphrases):
         # Dynamically update user profile for more accurate persona
 
@@ -325,6 +328,10 @@ class ArbiterAgent(Agent): # Arbiter Agent
         # Add code for updating the dict (profile) with newly generated keyphrases
         # Should check for similar/existing, update date if true
         ########################################################
+        warnings.warn(
+            "_update_profile is deprecated and may be removed in future versions.",
+            DeprecationWarning,
+        )
         profile_file = os.path.join(Agent.config_folder, "profile.csv")
         try:
             with open(profile_file, mode='w', newline='', encoding='utf-8') as file:
