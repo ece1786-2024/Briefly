@@ -428,7 +428,31 @@ class ArbiterAgent(Agent): # Arbiter Agent
                 Now extract the data and produce the JSON object.
             """
         )
-        known_info_response = self.call_api(extraction_prompt, previous_knolwedge_prompt )
+
+        # new call api is not accomodated with extractor so I am just doing it here\
+        # Since this new prompt is part of arbiter but api config structure wont accomodate
+        extractor_msg = []
+        extractor_msg.append({"role": "system", "content": extraction_prompt})
+        extractor_msg.append({"role": "user", "content": previous_knolwedge_prompt})
+
+        api_params = {
+            "model": self.api_params["model"],
+            "temperature": self.api_params["temperature"],
+            "max_tokens": self.api_params["max_tokens"],
+            "top_p": self.api_params["top_p"],
+            "frequency_penalty": self.api_params["frequency_penalty"],
+            "presence_penalty": self.api_params["presence_penalty"],
+            "messages": extractor_msg
+        }
+        try:
+            response = openai.chat.completions.create(**api_params)
+            known_info_response = response.choices[0].message.content.strip()
+            self.log_conversation("system", extraction_prompt)
+            self.log_conversation("user", previous_knolwedge_prompt) # usr msg
+            self.log_conversation("extracted info", known_info_response)
+        except Exception as e:
+            self.logger.error(f"Error in API call: {e}")
+            return None
 
         return known_info_response
     
