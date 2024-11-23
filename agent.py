@@ -1,4 +1,3 @@
-from turtle import update
 import openai
 import os
 import logging
