@@ -1,3 +1,4 @@
+from turtle import update
 import openai
 import os
 import logging
@@ -15,6 +16,7 @@ class Agent: # Base agent class
     conversation_log = None
     log_folder = "logs/logs"
     conversation_folder = "logs/conversation"
+    config_folder = "config"
 
     def __init__(self, name):
         self.name = name
@@ -91,6 +93,42 @@ class Agent: # Base agent class
     def process(self, *args, **kwargs):
         raise NotImplementedError("Implement in the agent subclasses")
     
+    @staticmethod
+    def load_profile():
+        # Load the existing keyphrases from the profile.csv
+        # outputs keyphrases
+        # set: makes it easy to check for duplicates
+        # list: needed if order matters
+        # dict: if we want to add beginner, intermediate, advanced and date added
+        # currently using a dict for future proofing
+        profile_file = os.path.join(Agent.config_folder, "profile.csv")
+
+        if not os.path.exists(profile_file):
+            logging.warning(f"Profile file '{profile_file}' does not exist.")
+            return {}
+
+        try:
+            profile = {}
+            with open(profile_file, mode='r', newline='', encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                if 'Keyphrase' not in reader.fieldnames:
+                    raise ValueError(f"Profile file '{profile_file}' must have a 'Keyphrase' column.")
+                
+                for row in reader:
+                    keyword = row['Keyphrase'].strip()
+                    level = row.get('Level', 'Advanced').strip() # Default: extreme case
+                    date = row.get('Date', None) # Date, should get updated if repeated
+                    profile[keyword] = {
+                        "Level": level,
+                        "Date": date
+                    }
+
+            logging.info(f"Loaded profile with {len(profile)} keyphrases.")
+            return profile
+        except Exception as e:
+            logging.error(f"Error reading profile file: {e}")
+            raise
+    
 class SummarizationAgent(Agent): # Summarization Agent
     def __init__(self):
         super().__init__("Summarization Agent")
@@ -124,9 +162,9 @@ class SummarizationAgent(Agent): # Summarization Agent
         return summary
 
 class PersonalizationAgent(Agent): # Personalization Agent
-    def __init__(self, profile):
+    def __init__(self):
         super().__init__("Personalization Agent")
-        self.profile = profile # List of keywords (How will we get this? Survey, reading history?, ideally with usage)
+        self.profile = self.load_profile() # List of keywords (How will we get this? Survey, reading history?, ideally with usage)
         self.persona = self.generate_persona()
     
     def generate_persona(self):
@@ -170,6 +208,7 @@ class PersonalizationAgent(Agent): # Personalization Agent
 class ArbiterAgent(Agent): # Arbiter Agent
     def __init__(self):
         super().__init__("Arbiter Agent")
+        self.profile = self.load_profile()
 
     def check_bias(self, article, summary):
         # Check bias
@@ -184,6 +223,7 @@ class ArbiterAgent(Agent): # Arbiter Agent
             "It is okay if the article adds or removes context regarding topics in the article. It doesn't have to be perfect, allow some flexibility."
         )
         # "2. If there are inaccuracies or missing information, explain what is incorrect or missing.\n"
+        # Can every statement in the summary be within reason based on the article.
         usr_msg = (
             f"Here is the original article:\n\n{article}\n\n"
             f"Here is the summary:\n\n{summary}\n\n"
@@ -203,20 +243,58 @@ class ArbiterAgent(Agent): # Arbiter Agent
     
     def generate_keyphrases(self):
         # Generate keyphrases for dynamic user profiles
+
+        # Code for generating keyphrases from article/summary goes here
+        self.logger.info("Keyphrases extracted.")
         raise NotImplementedError("To be completed.")
 
-    def update_profile(self):
+    def update_profile(self, profile, keyphrases):
         # Dynamically update user profile for more accurate persona
-        raise NotImplementedError("To be completed.")
+
+        # It takes in the keyphrases and updates the csv file
+        # profile = existing keyphrases
+        # keyphrases = new generated ones
+        # Should probably check if the new keyphrases are unique or similar
+        # Maybe add age of keyphrases to profile
+        # there is an age field in profile.csv, doesn't need to be used though
+        # output of load_profile is a dict
+        """
+        profile = {
+            "AI": {"Level": "Intermediate", "Date": "2024-11-22"},
+            "Taylor Swift": {"Level": "Advanced", "Date": "2024-11-22"}
+            }
+        """
+        ########################################################
+        # Add code for updating the dict (profile) with newly generated keyphrases
+        # Should check for similar/existing, update date if true
+        ########################################################
+        profile_file = os.path.join(Agent.config_folder, "profile.csv")
+        try:
+            with open(profile_file, mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.DictWriter(file, fieldnames=['Keyword', 'Level', 'Date'])
+                writer.writeheader()
+                for keyword, metadata in profile.items():
+                    writer.writerow({
+                        "Keyword": keyword,
+                        "Level": metadata["Level"],
+                        "Date": metadata["Date"]
+                    })
+            self.logger.info("Updated profile saved.")
+        except Exception as e:
+            self.logger.error(f"Error saving profile file: {e}")
+            raise
     
     def process(self, article, summaries):
         for summary in reversed(summaries):
             is_accurate, feedback = self.check_truth(article, summary)
             if is_accurate:
                 self.logger.info("Summary accepted.")
+                keyphrases = self.generate_keyphrases() # generates keyphrases from articles/summary
+                self.update_profile(self.profile, keyphrases) # checks and updates profile.csv
                 return summary
             else:
                 self.logger.warning("Summary needs revision: %s", feedback)
+                # return something that forces the model to restart??
         
         self.logger.warning("No acceptable summary found. Reverting to zero-shot summary.")
         return summaries[0] if summaries else None

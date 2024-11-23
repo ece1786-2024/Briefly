@@ -2,7 +2,7 @@
 logs/logs/.log
 logs/conversation/*.csv
 logs/conversation/*.xlsx
-
+*.xlsx
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
