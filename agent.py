@@ -281,8 +281,6 @@ class PersonalizationAgent(Agent): # Personalization Agent
         self.logger.info(f"Generated feedback: {feedback}")
         return feedback
     
-    
-    
     def process(self, summary):
         # Generate and return feedback based on the summary produced by Summarization Agent
         feedback = self.generate_feedback(summary)
@@ -400,12 +398,35 @@ class ArbiterAgent(Agent): # Arbiter Agent
         )
 
         extraction_prompt = (
-            "Analyze the provided summary and identify key concepts, topics, or entities along with their associated details. Based on this analysis:"
-            "Return ONLY a JSON object where each key is the phrase or name of the concept, topic, or entity, and its value is a dictionary with the following structure:"
-            "{ 'Keyphrase': 'A concise, one-sentence description or detail about the topic', 'Level': 'Importance level (e.g., high, medium, low)', 'Date': 'YYYY-MM-DD'}."
-            "Each Keyphrase must be a single sentence and should clearly summarize the associated detail without additional elaboration."
-            "The JSON object should include multiple entries if applicable. Do not include any extra explanations or text outside of the JSON structure."
-            "Ensure the output is a valid JSON object with no syntax errors."
+            """
+                Analyze the provided summary and extract key concepts, topics, or entities. For each, generate a JSON object where each key represents the concept, and its value is a dictionary with the following structure:
+                {
+                    "Keyphrase": "A single, concise sentence summarizing the topic or entity.",
+                    "Level": "Importance level (e.g., high, medium, low).",
+                    "Date": "YYYY-MM-DD."
+                }
+                Follow these rules:
+                - Only use the topics explicitly mentioned in the summary.
+                - Structure the output exactly as shown in the example below.
+                - Do not add any text outside the JSON structure.
+                - Ensure the output is a valid JSON object.
+
+                Example output:
+                {
+                    "Topic 1": {
+                        "Keyphrase": "A single, concise sentence.",
+                        "Level": "high",
+                        "Date": "2024-11-23"
+                    },
+                    "Topic 2": {
+                        "Keyphrase": "Another concise sentence.",
+                        "Level": "medium",
+                        "Date": "2024-11-23"
+                    }
+                }
+
+                Now extract the data and produce the JSON object.
+            """
         )
         known_info_response = self.call_api(extraction_prompt, previous_knolwedge_prompt )
 
