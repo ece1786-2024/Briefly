@@ -13,7 +13,7 @@ def load_articles(filename):
 def generate_summary(article_text, profile, feedback_rounds=2):
     # Initialize agents
     summarization_agent = SummarizationAgent()
-    personalization_agent = PersonalizationAgent(profile=profile)
+    personalization_agent = PersonalizationAgent()
     arbiter_agent = ArbiterAgent()
 
     # Generate initial summary zero-shot
