@@ -3,6 +3,8 @@ import os
 import logging
 import datetime
 import csv
+import json
+import warnings
 
 from sympy import per
 
@@ -278,7 +280,9 @@ class PersonalizationAgent(Agent): # Personalization Agent
         feedback = self.call_api(params)
         self.logger.info(f"Generated feedback: {feedback}")
         return feedback
-
+    
+    
+    
     def process(self, summary):
         # Generate and return feedback based on the summary produced by Summarization Agent
         feedback = self.generate_feedback(summary)
@@ -309,14 +313,8 @@ class ArbiterAgent(Agent): # Arbiter Agent
             self.logger.error(f"Error in summary verification: {e}")
             return False, "Error during verification"
     
-    def generate_keyphrases(self):
-        # Generate keyphrases for dynamic user profiles
-
-        # Code for generating keyphrases from article/summary goes here
-        self.logger.info("Keyphrases extracted.")
-        raise NotImplementedError("To be completed.")
-
-    def update_profile(self, profile, keyphrases):
+    @DeprecationWarning
+    def _update_profile(self, profile, keyphrases):
         # Dynamically update user profile for more accurate persona
 
         # It takes in the keyphrases and updates the csv file
@@ -326,38 +324,99 @@ class ArbiterAgent(Agent): # Arbiter Agent
         # Maybe add age of keyphrases to profile
         # there is an age field in profile.csv, doesn't need to be used though
         # output of load_profile is a dict
-        """
-        profile = {
-            "AI": {"Level": "Intermediate", "Date": "2024-11-22"},
-            "Taylor Swift": {"Level": "Advanced", "Date": "2024-11-22"}
-            }
-        """
         ########################################################
         # Add code for updating the dict (profile) with newly generated keyphrases
         # Should check for similar/existing, update date if true
         ########################################################
+        warnings.warn(
+            "_update_profile is deprecated and may be removed in future versions.",
+            DeprecationWarning,
+        )
         profile_file = os.path.join(Agent.config_folder, "profile.csv")
         try:
             with open(profile_file, mode='w', newline='', encoding='utf-8') as file:
-                writer = csv.DictWriter(file, fieldnames=['Keyword', 'Level', 'Date'])
+                writer = csv.DictWriter(file, fieldnames=['Keyphrase', 'Level', 'Date'])
                 writer.writeheader()
                 for keyword, metadata in profile.items():
                     writer.writerow({
-                        "Keyword": keyword,
-                        "Level": metadata["Level"],
+                        "Keyphrase": keyword,
+                        "Level": "",#metadata["Level"],
                         "Date": metadata["Date"]
                     })
             self.logger.info("Updated profile saved.")
         except Exception as e:
             self.logger.error(f"Error saving profile file: {e}")
             raise
+
+    def update_profile(self, profile, keyphrases):
+        """
+        Update the profile with new keyphrases and save to CSV.
+
+        Args:
+            profile (dict): The existing profile dictionary.
+            keyphrases (str or dict): New keyphrases to update, provided as a string or dictionary.
+        """
+        # Parse keyphrases if they are provided as a string
+        if isinstance(keyphrases, str):
+            try:
+                keyphrases = json.loads(keyphrases)
+            except json.JSONDecodeError as e:
+                self.logger.error(f"Invalid keyphrases format: {e}")
+                raise ValueError("Keyphrases must be a valid JSON string or dictionary.")
+
+        # Merge keyphrases into profile
+        for keyword, metadata in keyphrases.items():
+            profile[keyword] = metadata  # Update or add new keyphrases
+
+        # Write the updated profile to a CSV
+        profile_file = os.path.join(Agent.config_folder, "profile.csv")
+        try:
+            with open(profile_file, mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.DictWriter(file, fieldnames=['Keyphrase', 'Level', 'Date'])
+                writer.writeheader()
+                for keyword, metadata in profile.items():
+                    writer.writerow({
+                        "Keyphrase": metadata.get("Keyphrase", keyword),
+                        "Level": "",#metadata.get("Level", "Unknown"),
+                        "Date": datetime.datetime.now().strftime("%Y-%m-%d")
+                    })
+            self.logger.info("Updated profile saved.")
+        except Exception as e:
+            self.logger.error(f"Error saving profile file: {e}")
+            raise
+
+    def generate_keyphrases(self,final_summary):
+        # Use the Personalization Agent to identify known information in the final summary.
+        """
+        Use the Personalization Agent to identify known information in the final summary.
+        """
+        # Code for generating keyphrases from article/summary goes here
+        self.logger.info("Keyphrases extracted.")
+
+        # Ask the Personalization Agent to identify known topics based on the summary
+        previous_knolwedge_prompt = (
+            f"This is the summary: {final_summary}"
+            f"Known information from the user includes:\n{self.profile}\n\n"
+        )
+
+        extraction_prompt = (
+            "Analyze the provided summary and identify key concepts, topics, or entities along with their associated details. Based on this analysis:"
+            "Return ONLY a JSON object where each key is the phrase or name of the concept, topic, or entity, and its value is a dictionary with the following structure:"
+            "{ 'Keyphrase': 'A concise, one-sentence description or detail about the topic', 'Level': 'Importance level (e.g., high, medium, low)', 'Date': 'YYYY-MM-DD'}."
+            "Each Keyphrase must be a single sentence and should clearly summarize the associated detail without additional elaboration."
+            "The JSON object should include multiple entries if applicable. Do not include any extra explanations or text outside of the JSON structure."
+            "Ensure the output is a valid JSON object with no syntax errors."
+        )
+        known_info_response = self.call_api(extraction_prompt, previous_knolwedge_prompt )
+
+        return known_info_response
     
     def process(self, article, summaries):
         for summary in reversed(summaries):
             is_accurate, feedback = self.check_truth(article, summary)
             if is_accurate:
                 self.logger.info("Summary accepted.")
-                keyphrases = self.generate_keyphrases() # generates keyphrases from articles/summary
+                keyphrases = self.generate_keyphrases(summary) # generates keyphrases from articles/summary
                 self.update_profile(self.profile, keyphrases) # checks and updates profile.csv
                 return summary
             else:
