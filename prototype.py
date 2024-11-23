@@ -10,10 +10,10 @@ def load_articles(filename):
     df['Selected'] = pd.NA
     return df
 
-def generate_summary(article_text, profile, feedback_rounds=2):
+def generate_summary(article_text, feedback_rounds=2):
     # Initialize agents
     summarization_agent = SummarizationAgent()
-    personalization_agent = PersonalizationAgent(profile=profile)
+    personalization_agent = PersonalizationAgent()
     arbiter_agent = ArbiterAgent()
 
     # Generate initial summary zero-shot
@@ -35,10 +35,9 @@ if __name__ == "__main__":
     ###############################
     #filename = 'data/newspaper.csv' # General
     filename = 'data/trump.csv' # US Politics
-    profile = ["US election 2024", "donald trump cabinet", "project 2025", "dislikes migrants"]
     article = -1
-    single = False
-    savename = 'results/trump_summary.csv'
+    single = True
+    savename = 'results/revision.csv'
     #savename = 'results/general_summary.csv'
     ###############################
     df = load_articles(filename)
@@ -46,14 +45,14 @@ if __name__ == "__main__":
         article_text = df['Body'].iloc[article]
         article_title = df['Title'].iloc[article]
         print(f'Summarizing: {article_title}...')
-        generate_summary(article_text, profile, feedback_rounds=3)
+        generate_summary(article_text, feedback_rounds=2)
         print('Done.')
     else: 
         for article in range(len(df)):
             article_text = df['Body'].iloc[article]
             article_title = df['Title'].iloc[article]
             print(f'Summarizing: {article_title}...')
-            final, initial, last = generate_summary(article_text, profile, feedback_rounds=3)
+            final, initial, last = generate_summary(article_text, feedback_rounds=3)
             print('Done.')
             df.loc[article, 'Zero-Shot Summary'] = initial
             df.loc[article, 'Last Iteration'] = last

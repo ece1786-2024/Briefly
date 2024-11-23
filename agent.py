@@ -1,9 +1,10 @@
-from turtle import update
 import openai
 import os
 import logging
 import datetime
 import csv
+
+from sympy import per
 
 # API Key
 if "OPENAI_API_KEY" not in os.environ:
@@ -23,6 +24,9 @@ class Agent: # Base agent class
         self.logger = logging.getLogger("agent")
         self.configure_logger() # Initialize logger for debugging
         
+        self.api_params = self.load_api_config()  # Load API params from config
+        self.messages = self.initialize_messages() # initialize messages list with sys msg
+
         # Initialize session-specific conversation log if not already set
         if Agent.session_id is None:
             self.reset()
@@ -65,25 +69,124 @@ class Agent: # Base agent class
             writer = csv.writer(file)
             writer.writerow([timestamp, self.name, role, message])
 
-    def call_api(self, sys_msg, usr_msg): # Calls openAI API
+    
+    def load_api_config(self):
+        # Load API config and initial messages for the given agent
+        api_config_file = os.path.join(Agent.config_folder, "api_config.csv")
+        if not os.path.exists(api_config_file):
+            error_message = f"API config file '{api_config_file}' does not exist."
+            self.logger.error(error_message)
+            raise FileNotFoundError(error_message)
         try:
-            response = openai.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": sys_msg},
-                    {"role": "user", "content": usr_msg}
-                ],
-                max_tokens=2048, # Add args feature later
-                temperature=1,
-                top_p=1.0,
-                frequency_penalty=0.05,
-                presence_penalty=0.05
-            )
+            with open(api_config_file, mode='r', newline='', encoding='utf-8', errors='replace') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    if row["AgentName"].strip() == self.name:
+                        # Convert config to proper types and return as dict
+                        # Provide defaults for all except for sys and usr msg
+                        system_message = row.get("SystemMessage", "").strip()
+                        user_message_template = row.get("UserMessage", "").strip()
+                        # check for sys and usr msgs
+                        if not system_message:
+                            error_message = f"SystemMessage is missing for agent: '{self.name}'."
+                            self.logger.critical(error_message)
+                            raise ValueError(error_message)
+
+                        if not user_message_template:
+                            error_message = f"UserMessage is missing or empty for agent: '{self.name}'."
+                            self.logger.critical(error_message)
+                            raise ValueError(error_message)
+                        
+                        return {
+                            "model": row.get("Model", "gpt-4o").strip(),
+                            "temperature": float(row.get("Temperature", 1)),
+                            "max_tokens": int(row.get("MaxTokens", 2048)),
+                            "top_p": float(row.get("TopP", 1)),
+                            "frequency_penalty": float(row.get("frequency_penalty", 0)),
+                            "presence_penalty": float(row.get("presence_penalty", 0)),
+                            "system_message": system_message,
+                            "user_message_template": user_message_template
+                        }
+            # if no config found
+            error_message = f"No API configuration found for agent '{self.name}'."
+            self.logger.error(error_message)
+            raise ValueError(error_message)
+        except Exception as e:
+            self.logger.error(f"Error loading API config: {e}")
+            raise
+
+    def initialize_messages(self):
+        # Initialize the agent's messages list with the system message
+        messages = []
+        system_message = self.api_params.get("system_message")
+        messages.append({"role": "system", "content": system_message})
+        return messages
+
+    def call_api(self, params, initial_summary=False, persona=False): # Calls openAI API
+        # params (dict): key-value pairs to fill the user message template.
+        """
+        params = {
+            "article": "News News New",
+            "feedback": "Less news"
+        }
+        """
+        # initial_summary: handle initial summary, yes it's messy I forgot about it until I tested
+        if initial_summary:
+            # We should all be using a basic prompt for this
+            sys_msg = "You are a summarization agent who summarizes news articles in three sentences."
+            usr_msg_template = "Please summarize the following article: {article}"
+            user_message = usr_msg_template.format(**params)
+            self.messages = []
+            self.messages.append({"role": "system", "content": sys_msg})
+            self.messages.append({"role": "user", "content": user_message})
+        elif persona: # I also forgot about persona...
+            sys_msg = (
+                    "You are an assistant that generates a user persona based on their background knowledge. You will be given a list of keyphrases."
+                    "Describe the user's familiarity with each topic, and indicate whether they are an expert, moderately informed, or a beginner."
+                    )
+            usr_msg_template = "Create a user persona based on the following information: {profile}"
+            user_message = usr_msg_template.format(**params)
+            persona_msg = []
+            persona_msg.append({"role": "system", "content": sys_msg})
+            persona_msg.append({"role": "user", "content": user_message})
+        else: # regular usage
+            # Fill in user msg template
+            user_message_template = self.api_params["user_message_template"]
+            user_message = user_message_template.format(**params)
+
+            # Add msg to messages list (history)
+            self.messages.append({"role": "user", "content": user_message})
+
+        if persona:# I also forgot about persona...
+            message = persona_msg
+        else: #summary and normal operation
+            message = self.messages
+
+        api_params = {
+            "model": self.api_params["model"],
+            "temperature": self.api_params["temperature"],
+            "max_tokens": self.api_params["max_tokens"],
+            "top_p": self.api_params["top_p"],
+            "frequency_penalty": self.api_params["frequency_penalty"],
+            "presence_penalty": self.api_params["presence_penalty"],
+            "messages": message
+        }
+
+        try:
+            response = openai.chat.completions.create(**api_params)
             output = response.choices[0].message.content.strip()
+            if not persona: # don't do it if generating persona
+                self.messages.append({"role": "assistant", "content": output}) # Append response to messages list
             self.logger.info("Received response: %s", output) # Log for debugging
             # Log prompts and response for illustrative purposes
-            self.log_conversation("system", sys_msg)
-            self.log_conversation("user", usr_msg)
+            if initial_summary: # Add back the config system message for refining summaries
+                self.log_conversation("system", sys_msg)
+                self.messages.append({"role": "system", "content": self.api_params["system_message"]}) #sys msg
+            elif persona:
+                self.log_conversation("system", sys_msg)
+            else: # normal operation
+                self.log_conversation("system", self.api_params["system_message"]) #sys msg
+            self.log_conversation("user", user_message) # usr msg
             self.log_conversation("assistant", output)
             return output
         except Exception as e:
@@ -141,18 +244,13 @@ class SummarizationAgent(Agent): # Summarization Agent
         # Prompts
         if feedback: # Refine summary based on feedback from Personalization Agent
             self.logger.debug("Refining summary based on feedback...")
-            sys_msg = (
-                "You are a summarization agent who summarizes a news article based on feedback about previous summaries."
-                "You should use the feedback to produce a more relevant summary. The summary should be three sentences long. Try to include facts from the article."
-            )
-            # Try to include facts from the article. -- remove if want more speculative/inferred response and less factual
-            usr_msg = f"Generate a summary on the following  by taking into account this feedback: \n {feedback}.  \nArticle: \n {article}"
+            params = {"article": article, "feedback": feedback}
+            summary = self.call_api(params)
         else: # Initial zero-shot summary
             self.logger.debug("Generating initial summary...")
-            sys_msg = "You are a summarization agent who summarizes news articles in three sentences."
-            usr_msg = f"Please summarize the following article: {article}"
-        
-        summary = self.call_api(sys_msg, usr_msg) # Generate summary based on prompts
+            params = {"article": article}
+            summary = self.call_api(params, initial_summary=True)
+
         if summary:
             self.logger.info("Summary generated successfully.")
             self.summaries.append(summary)
@@ -169,32 +267,15 @@ class PersonalizationAgent(Agent): # Personalization Agent
     
     def generate_persona(self):
         # Create a persona based on profile keywords
-        sys_msg = (
-                    "You are an assistant that generates a user persona based on their background knowledge. You will be given a list of keyphrases."
-                    "Describe the user's familiarity with each topic, and indicate whether they are an expert, moderately informed, or a beginner."
-                    )
-        usr_msg = (
-            f"Create a user persona based on the following keywords: {', '.join(self.profile)}. "
-                )
-        persona_description = self.call_api(sys_msg, usr_msg)
+        params = {"profile": self.profile}
+        persona_description = self.call_api(params, persona=True)
         self.logger.info(f"Generated persona: {persona_description}")
         return persona_description
     
     def generate_feedback(self, summary):
         # Use the persona and summary to generate feedback about the summary
-        sys_msg = (
-            "You are a personalization assistant who provides feedback to tailor an article summary "
-            "based on the user's background knowledge and familiarity level."
-            "We're tailoring the summary to the user's knowledge level, not interpreting or analyzing the article."
-            "The feedback should not diverge from the context of a summary.\n"
-            "Please do the following: "
-            "\n 1. Suggest whether the user would need more context, less context, or if the summary is appropriate as is and why."
-            "\n 2. Provide itemized specific feedback on which details to add or remove."
-        )
-        usr_msg = (
-            f"Based on this persona: '{self.persona}', analyze the following summary: '{summary}' and provide feedback. "
-        )
-        feedback = self.call_api(sys_msg, usr_msg)
+        params = {"persona": self.persona, "summary": summary}
+        feedback = self.call_api(params)
         self.logger.info(f"Generated feedback: {feedback}")
         return feedback
 
@@ -216,22 +297,9 @@ class ArbiterAgent(Agent): # Arbiter Agent
     
     def check_truth(self, article, summary):
         # Check for preservation of truth/facts
-        sys_msg = (
-            "You are an assistant that evaluates whether a summary preserves the key information from an article. Please do the following: \n"
-            "1. If the summary is accurate and reflects the main points of the article, respond with 'Arbiter=1'. Otherwise 'Arbiter=0'\n"
-            "2. If there are inaccuracies, explain what is incorrect.\n"
-            "It is okay if the article adds or removes context regarding topics in the article. It doesn't have to be perfect, allow some flexibility."
-        )
-        # "2. If there are inaccuracies or missing information, explain what is incorrect or missing.\n"
-        # Can every statement in the summary be within reason based on the article.
-        usr_msg = (
-            f"Here is the original article:\n\n{article}\n\n"
-            f"Here is the summary:\n\n{summary}\n\n"
-            "Please check the summary given the article."
-        )
-
+        params = {"article": article, "summary": summary}
         try:
-            response = self.call_api(sys_msg, usr_msg)
+            response = self.call_api(params)
 
             if 'Arbiter=1' in response:
                 return True, "Acceptable"
