@@ -6,8 +6,6 @@ import csv
 import json
 import warnings
 
-from sympy import per
-
 # API Key
 if "OPENAI_API_KEY" not in os.environ:
     raise EnvironmentError("OPENAI_API_KEY environment variable is not set.")
@@ -124,7 +122,32 @@ class Agent: # Base agent class
         messages.append({"role": "system", "content": system_message})
         return messages
 
-    def call_api(self, params, initial_summary=False, persona=False): # Calls openAI API
+    def old_call_api(self, sys_msg, usr_msg): # Calls openAI API, old version
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": sys_msg},
+                    {"role": "user", "content": usr_msg}
+                ],
+                max_tokens=2048, # Add args feature later
+                temperature=1,
+                top_p=1.0,
+                frequency_penalty=0.05,
+                presence_penalty=0.05
+            )
+            output = response.choices[0].message.content.strip()
+            self.logger.info("Received response: %s", output) # Log for debugging
+            # Log prompts and response for illustrative purposes
+            self.log_conversation("system", sys_msg)
+            self.log_conversation("user", usr_msg)
+            self.log_conversation("assistant", output)
+            return output
+        except Exception as e:
+            self.logger.error(f"Error in API call: {e}")
+            return None
+
+    def call_api(self, params): # Calls openAI API
         # params (dict): key-value pairs to fill the user message template.
         """
         params = {
@@ -132,37 +155,12 @@ class Agent: # Base agent class
             "feedback": "Less news"
         }
         """
-        # initial_summary: handle initial summary, yes it's messy I forgot about it until I tested
-        if initial_summary:
-            # We should all be using a basic prompt for this
-            sys_msg = "You are a summarization agent who summarizes news articles in three sentences."
-            usr_msg_template = "Please summarize the following article: {article}"
-            user_message = usr_msg_template.format(**params)
-            self.messages = []
-            self.messages.append({"role": "system", "content": sys_msg})
-            self.messages.append({"role": "user", "content": user_message})
-        elif persona: # I also forgot about persona...
-            sys_msg = (
-                    "You are an assistant that generates a user persona based on their background knowledge. You will be given a list of keyphrases."
-                    "Describe the user's familiarity with each topic, and indicate whether they are an expert, moderately informed, or a beginner."
-                    )
-            usr_msg_template = "Create a user persona based on the following information: {profile}"
-            user_message = usr_msg_template.format(**params)
-            persona_msg = []
-            persona_msg.append({"role": "system", "content": sys_msg})
-            persona_msg.append({"role": "user", "content": user_message})
-        else: # regular usage
-            # Fill in user msg template
-            user_message_template = self.api_params["user_message_template"]
-            user_message = user_message_template.format(**params)
+        # Fill in user msg template
+        user_message_template = self.api_params["user_message_template"]
+        user_message = user_message_template.format(**params)
 
-            # Add msg to messages list (history)
-            self.messages.append({"role": "user", "content": user_message})
-
-        if persona:# I also forgot about persona...
-            message = persona_msg
-        else: #summary and normal operation
-            message = self.messages
+        # Add msg to messages list (history)
+        self.messages.append({"role": "user", "content": user_message})
 
         api_params = {
             "model": self.api_params["model"],
@@ -171,23 +169,16 @@ class Agent: # Base agent class
             "top_p": self.api_params["top_p"],
             "frequency_penalty": self.api_params["frequency_penalty"],
             "presence_penalty": self.api_params["presence_penalty"],
-            "messages": message
+            "messages": self.messages
         }
 
         try:
             response = openai.chat.completions.create(**api_params)
             output = response.choices[0].message.content.strip()
-            if not persona: # don't do it if generating persona
-                self.messages.append({"role": "assistant", "content": output}) # Append response to messages list
+            self.messages.append({"role": "assistant", "content": output}) # Append response to messages list
             self.logger.info("Received response: %s", output) # Log for debugging
             # Log prompts and response for illustrative purposes
-            if initial_summary: # Add back the config system message for refining summaries
-                self.log_conversation("system", sys_msg)
-                self.messages.append({"role": "system", "content": self.api_params["system_message"]}) #sys msg
-            elif persona:
-                self.log_conversation("system", sys_msg)
-            else: # normal operation
-                self.log_conversation("system", self.api_params["system_message"]) #sys msg
+            self.log_conversation("system", self.api_params["system_message"]) #sys msg
             self.log_conversation("user", user_message) # usr msg
             self.log_conversation("assistant", output)
             return output
@@ -250,8 +241,10 @@ class SummarizationAgent(Agent): # Summarization Agent
             summary = self.call_api(params)
         else: # Initial zero-shot summary
             self.logger.debug("Generating initial summary...")
-            params = {"article": article}
-            summary = self.call_api(params, initial_summary=True)
+            sys_msg = "You are a summarization agent who summarizes news articles in three sentences."
+            usr_msg = f"Please summarize the following article: {article}"
+        
+            summary = self.old_call_api(sys_msg, usr_msg) # Generate summary based on prompts
 
         if summary:
             self.logger.info("Summary generated successfully.")
@@ -269,8 +262,14 @@ class PersonalizationAgent(Agent): # Personalization Agent
     
     def generate_persona(self):
         # Create a persona based on profile keywords
-        params = {"profile": self.profile}
-        persona_description = self.call_api(params, persona=True)
+        sys_msg = (
+                    "You are an assistant that generates a user persona based on their background knowledge. You will be given a list of keyphrases."
+                    "Describe the user's familiarity with each topic, and indicate whether they are an expert, moderately informed, or a beginner."
+                    )
+        usr_msg = (
+            f"Create a user persona based on the following dictionary: {', '.join(self.profile)}. "
+                )
+        persona_description = self.old_call_api(sys_msg, usr_msg)
         self.logger.info(f"Generated persona: {persona_description}")
         return persona_description
     
@@ -429,30 +428,7 @@ class ArbiterAgent(Agent): # Arbiter Agent
             """
         )
 
-        # new call api is not accomodated with extractor so I am just doing it here\
-        # Since this new prompt is part of arbiter but api config structure wont accomodate
-        extractor_msg = []
-        extractor_msg.append({"role": "system", "content": extraction_prompt})
-        extractor_msg.append({"role": "user", "content": previous_knolwedge_prompt})
-
-        api_params = {
-            "model": self.api_params["model"],
-            "temperature": self.api_params["temperature"],
-            "max_tokens": self.api_params["max_tokens"],
-            "top_p": self.api_params["top_p"],
-            "frequency_penalty": self.api_params["frequency_penalty"],
-            "presence_penalty": self.api_params["presence_penalty"],
-            "messages": extractor_msg
-        }
-        try:
-            response = openai.chat.completions.create(**api_params)
-            known_info_response = response.choices[0].message.content.strip()
-            self.log_conversation("system", extraction_prompt)
-            self.log_conversation("user", previous_knolwedge_prompt) # usr msg
-            self.log_conversation("extracted info", known_info_response)
-        except Exception as e:
-            self.logger.error(f"Error in API call: {e}")
-            return None
+        known_info_response = self.call_api(extraction_prompt, previous_knolwedge_prompt)
 
         return known_info_response
     
