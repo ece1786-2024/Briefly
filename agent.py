@@ -429,7 +429,7 @@ class ArbiterAgent(Agent): # Arbiter Agent
             """
         )
 
-        known_info_response = self.call_api(extraction_prompt, previous_knolwedge_prompt)
+        known_info_response = self.old_call_api(extraction_prompt, previous_knolwedge_prompt)
 
         return known_info_response
     
