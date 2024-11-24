@@ -190,14 +190,15 @@ class Agent: # Base agent class
         raise NotImplementedError("Implement in the agent subclasses")
     
     @staticmethod
-    def load_profile():
+    def load_profile(profile_file=None):
         # Load the existing keyphrases from the profile.csv
         # outputs keyphrases
         # set: makes it easy to check for duplicates
         # list: needed if order matters
         # dict: if we want to add beginner, intermediate, advanced and date added
         # currently using a dict for future proofing
-        profile_file = os.path.join(Agent.config_folder, "profile.csv")
+        if not profile_file:
+            profile_file = os.path.join(Agent.config_folder, "profile.csv")
 
         if not os.path.exists(profile_file):
             logging.warning(f"Profile file '{profile_file}' does not exist.")
@@ -243,7 +244,7 @@ class SummarizationAgent(Agent): # Summarization Agent
             self.logger.debug("Generating initial summary...")
             sys_msg = "You are a summarization agent who summarizes news articles in three sentences."
             usr_msg = f"Please summarize the following article: {article}"
-        
+
             summary = self.old_call_api(sys_msg, usr_msg) # Generate summary based on prompts
 
         if summary:
@@ -255,9 +256,9 @@ class SummarizationAgent(Agent): # Summarization Agent
         return summary
 
 class PersonalizationAgent(Agent): # Personalization Agent
-    def __init__(self):
+    def __init__(self, profile_file="profile.csv"):
         super().__init__("Personalization Agent")
-        self.profile = self.load_profile() # List of keywords (How will we get this? Survey, reading history?, ideally with usage)
+        self.profile = self.load_profile(profile_file) # List of keywords (How will we get this? Survey, reading history?, ideally with usage)
         self.persona = self.generate_persona()
     
     def generate_persona(self):
