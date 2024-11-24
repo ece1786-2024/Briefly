@@ -363,12 +363,12 @@ class ArbiterAgent(Agent): # Arbiter Agent
                 raise ValueError("Keyphrases must be a valid JSON string or dictionary.")
 
         # Merge keyphrases into profile
-        for keyword, metadata in keyphrases.items():
-            profile[keyword] = metadata  # Update or add new keyphrases
-
-        # Write the updated profile to a CSV
-        profile_file = os.path.join(Agent.config_folder, "profile.csv")
         try:
+            for keyword, metadata in keyphrases.items():
+                profile[keyword] = metadata  # Update or add new keyphrases
+
+            # Write the updated profile to a CSV
+            profile_file = os.path.join(Agent.config_folder, "profile.csv")
             with open(profile_file, mode='w', newline='', encoding='utf-8') as file:
                 writer = csv.DictWriter(file, fieldnames=['Keyphrase', 'Level', 'Date'])
                 writer.writeheader()
@@ -429,16 +429,59 @@ class ArbiterAgent(Agent): # Arbiter Agent
             """
         )
 
-        known_info_response = self.call_api(extraction_prompt, previous_knolwedge_prompt)
+        known_info_response = self.old_call_api(extraction_prompt, previous_knolwedge_prompt)
+
+        # Ensure the response is a valid JSON string
+        try:
+            # Parse the JSON response to a dictionary
+            keyphrases_json = json.loads(known_info_response)
+        except json.JSONDecodeError:
+            self.logger.error(f"Error parsing keyphrases JSON response: {known_info_response}")
+            raise ValueError("Received response is not valid JSON.")        
 
         return known_info_response
+
+    def rate_bias(self, article, summary):
+        """
+        Rates the bias of an article-summary pair on a scale of 1-5.
+        1: Not biased
+        5: Very biased
+        """
+        bias_rating_prompt = (
+            f"Given the following article and its summary, please rate the bias of the summary "
+            f"on a scale of 1 to 5, where 1 is not biased and 5 is very biased. "
+            f"Here is the article:\n{article}\n\n"
+            f"Here is the summary:\n{summary}\n\n"
+            f"Please provide a single integer as the bias rating."
+        )
+
+        try:
+            response = self.old_call_api("", bias_rating_prompt)
+            # Assuming the response is a valid integer between 1 and 5
+            bias_rating = int(response.strip())
+
+            # Ensure the rating is within the allowed range
+            if 1 <= bias_rating <= 5:
+                return bias_rating, "Bias rating completed successfully."
+            else:
+                return 0, "Bias rating is out of range. Expected between 1 and 5."
+
+        except Exception as e:
+            self.logger.error(f"Error in bias rating: {e}")
+            return 0, "Error during bias rating."
+
+
+
     
     def process(self, article, summaries):
         for summary in reversed(summaries):
             is_accurate, feedback = self.check_truth(article, summary)
             if is_accurate:
                 self.logger.info("Summary accepted.")
+                bias_rating = self.rate_bias(article, summary)
+                self.logger.info(f"bias rating {bias_rating}")
                 keyphrases = self.generate_keyphrases(summary) # generates keyphrases from articles/summary
+
                 self.update_profile(self.profile, keyphrases) # checks and updates profile.csv
                 return summary
             else:
