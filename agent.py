@@ -310,41 +310,6 @@ class ArbiterAgent(Agent): # Arbiter Agent
         except Exception as e:
             self.logger.error(f"Error in summary verification: {e}")
             return False, "Error during verification"
-    
-    @DeprecationWarning
-    def _update_profile(self, profile, keyphrases):
-        # Dynamically update user profile for more accurate persona
-
-        # It takes in the keyphrases and updates the csv file
-        # profile = existing keyphrases
-        # keyphrases = new generated ones
-        # Should probably check if the new keyphrases are unique or similar
-        # Maybe add age of keyphrases to profile
-        # there is an age field in profile.csv, doesn't need to be used though
-        # output of load_profile is a dict
-        ########################################################
-        # Add code for updating the dict (profile) with newly generated keyphrases
-        # Should check for similar/existing, update date if true
-        ########################################################
-        warnings.warn(
-            "_update_profile is deprecated and may be removed in future versions.",
-            DeprecationWarning,
-        )
-        profile_file = os.path.join(Agent.config_folder, "profile.csv")
-        try:
-            with open(profile_file, mode='w', newline='', encoding='utf-8') as file:
-                writer = csv.DictWriter(file, fieldnames=['Keyphrase', 'Level', 'Date'])
-                writer.writeheader()
-                for keyword, metadata in profile.items():
-                    writer.writerow({
-                        "Keyphrase": keyword,
-                        "Level": "",#metadata["Level"],
-                        "Date": metadata["Date"]
-                    })
-            self.logger.info("Updated profile saved.")
-        except Exception as e:
-            self.logger.error(f"Error saving profile file: {e}")
-            raise
 
     def update_profile(self, profile, keyphrases):
         """
@@ -429,17 +394,9 @@ class ArbiterAgent(Agent): # Arbiter Agent
             """
         )
 
-        known_info_response = self.old_call_api(extraction_prompt, previous_knolwedge_prompt)
+        known_info_response = self.old_call_api(extraction_prompt, previous_knolwedge_prompt)  
 
-        # Ensure the response is a valid JSON string
-        try:
-            # Parse the JSON response to a dictionary
-            keyphrases_json = json.loads(known_info_response)
-        except json.JSONDecodeError:
-            self.logger.error(f"Error parsing keyphrases JSON response: {known_info_response}")
-            raise ValueError("Received response is not valid JSON.")        
-
-        return known_info_response
+        return known_info_response.replace("```json", "").replace("```", "")
 
     def rate_bias(self, article, summary):
         """
