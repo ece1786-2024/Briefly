@@ -10,25 +10,36 @@ def load_articles(filename):
     df['Selected'] = pd.NA
     return df
 
-def generate_summary(article_text, feedback_rounds=2):
+def generate_summary(article_text, feedback_rounds=2, max_retries=1):
     # Initialize agents
     summarization_agent = SummarizationAgent()
     personalization_agent = PersonalizationAgent()
     arbiter_agent = ArbiterAgent()
 
-    # Generate initial summary zero-shot
-    initial_summary = summarization_agent.process(article_text)
-    # Refine summary with PersonalizationAgent Feedback
-    summaries = [initial_summary]
-    for _ in range(feedback_rounds):
-        feedback = personalization_agent.process(summaries[-1])
-        refined_summary = summarization_agent.process(article_text, feedback=feedback)
-        summaries.append(refined_summary)
+    retry_count = 0
+    while retry_count < max_retries:
+        # Generate initial summary zero-shot
+        initial_summary = summarization_agent.process(article_text)
 
-    # Verify using arbiter
-    final_summary = arbiter_agent.process(article_text, summaries)
+        # Refine summary with PersonalizationAgent Feedback
+        summaries = [] # changed to empty list so arbiter won't see the initial summary
+        for _ in range(feedback_rounds):
+            feedback = personalization_agent.process(summaries[-1])
+            refined_summary = summarization_agent.process(article_text, feedback=feedback)
+            summaries.append(refined_summary)
 
-    return final_summary, initial_summary, summaries[-1]
+        # Verify using arbiter
+        final_summary = arbiter_agent.process(article_text, summaries)
+
+        if final_summary:  # If summary passes
+            return final_summary, initial_summary, summaries[-1]
+        else:
+            retry_count += 1  # Summary fails
+            print(f"Retry {retry_count}/{max_retries}: No acceptable summary found. Retrying...")
+            
+    # If max retries are exceeded
+    print("Max retries exceeded. Returning the most recent try.")
+    return None, initial_summary, summaries[-1] if summaries else None
 
 if __name__ == "__main__":
     # Params

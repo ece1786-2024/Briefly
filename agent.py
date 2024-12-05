@@ -292,10 +292,6 @@ class ArbiterAgent(Agent): # Arbiter Agent
     def __init__(self):
         super().__init__("Arbiter Agent")
         self.profile = self.load_profile()
-
-    def check_bias(self, article, summary):
-        # Check bias
-        raise NotImplementedError("To be completed.")
     
     def check_truth(self, article, summary):
         # Check for preservation of truth/facts
@@ -426,9 +422,6 @@ class ArbiterAgent(Agent): # Arbiter Agent
         except Exception as e:
             self.logger.error(f"Error in bias rating: {e}")
             return 0, "Error during bias rating."
-
-
-
     
     def process(self, article, summaries):
         for summary in reversed(summaries):
@@ -445,5 +438,5 @@ class ArbiterAgent(Agent): # Arbiter Agent
                 self.logger.warning("Summary needs revision: %s", feedback)
                 # return something that forces the model to restart??
         
-        self.logger.warning("No acceptable summary found. Reverting to zero-shot summary.")
-        return summaries[0] if summaries else None
+        self.logger.warning("No acceptable summary found. Restart.")
+        return None
