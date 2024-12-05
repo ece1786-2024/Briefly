@@ -22,14 +22,14 @@ def generate_summary(article_text, feedback_rounds=2, max_retries=1):
         initial_summary = summarization_agent.process(article_text)
 
         # Refine summary with PersonalizationAgent Feedback
-        summaries = [] # changed to empty list so arbiter won't see the initial summary
+        summaries = [initial_summary]
         for _ in range(feedback_rounds):
             feedback = personalization_agent.process(summaries[-1])
             refined_summary = summarization_agent.process(article_text, feedback=feedback)
             summaries.append(refined_summary)
 
         # Verify using arbiter
-        final_summary = arbiter_agent.process(article_text, summaries)
+        final_summary = arbiter_agent.process(article_text, summaries[1:]) # EXCLUDING ZERO-SHOT from arbiter
 
         if final_summary:  # If summary passes
             return final_summary, initial_summary, summaries[-1]
