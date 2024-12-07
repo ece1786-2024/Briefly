@@ -1,4 +1,5 @@
 import os
+import json
 import gradio as gr
 from datetime import date
 from demo_config import demo_keywords, demo_articles
@@ -10,6 +11,7 @@ from agent import SummarizationAgent, PersonalizationAgent, ArbiterAgent
 
 PROFILE = 'config/demo_profile.csv'
 ARTICLE = None
+NUM_ITERS = 3
 
 def generate_demo_profile(selected_options):
     keywords = []
@@ -29,24 +31,49 @@ def choose_article(selected_option):
     global ARTICLE
     ARTICLE = demo_articles[selected_option]
 
-def generate_zero_shot_summary():
+def get_personalized_summary():
     summarization_agent = SummarizationAgent()
     initial_summary = summarization_agent.process(ARTICLE)
-    return initial_summary
-
-def get_feedback(initial_summary):
+    status_msg = "Zero-shot summary generated...\n"
+    debug_msg = f"ZERO-SHOT SUMMARY IS: \n{initial_summary}\n\n"
+    yield status_msg, debug_msg, gr.update(), gr.update()
     personalization_agent = PersonalizationAgent(profile_file=PROFILE)
+    status_msg += "Persona generated...\n"
+    debug_msg += f"PERSONA IS: \n{personalization_agent.persona}\n\n"
+    yield status_msg, debug_msg, gr.update(), gr.update()
     summaries = [initial_summary]
-    feedback = personalization_agent.process(summaries[-1])
-    return feedback
+    for i in range(NUM_ITERS):
+        feedback = personalization_agent.process(summaries[-1])
+        status_msg += f"Feedback #{i + 1} generated...\n"
+        debug_msg += f"FEEDBACK #{i + 1} IS: \n{feedback}\n\n"
+        yield status_msg, debug_msg, gr.update(), gr.update()
+        new_summary = summarization_agent.process(ARTICLE, feedback)
+        status_msg += f"Refined summary #{i + 1} generated...\n"
+        debug_msg += f"REFINED SUMMARY #{i + 1} IS: \n{new_summary}\n\n"
+        yield status_msg, debug_msg, gr.update(), gr.update()
+        summaries.append(new_summary)
+    status_msg += "Checking with arbiter...\n"
+    debug_msg += "CHECKING WITH ARBITER!\n\n"
+    yield status_msg, debug_msg, gr.update(), gr.update()
+    arbiter_agent = ArbiterAgent(profile_file=PROFILE)
+    final_summary, bias_rating, keyphrases = arbiter_agent.process(ARTICLE, summaries)
+    if final_summary:
+        status_msg += "Final summary generated...\n"
+        debug_msg += f"FINAL SUMMARY IS: \n{final_summary}\n\n"
+        final_msg = f"{final_summary}\n\nBIAS RATING: {bias_rating[0]}/5 (lower is less biased)"
+        keyphrases = "\n".join(list(json.loads(keyphrases).keys()))
+        yield status_msg, debug_msg, final_msg, keyphrases
+    else:
+        error_msg = "ERROR: All summaries had factual inconsistencies. Please check the debug logs."
+        status_msg += error_msg
+        debug_msg += f"ARBITER OUTPUT IS: \n{error_msg}\n\n"
+        yield error_msg, f"ARBITER OUTPUT IS: \n{error_msg}\n\n", error_msg, "No keyphrases generated due to above error messages."
 
-def generate_refined_summary(feedback):
-    summarization_agent = SummarizationAgent()
-    refined_summary = summarization_agent.process(ARTICLE, feedback=feedback)
-    return refined_summary
+def soft_reset():
+    return "", "", "", ""
 
 def reset_form():
-    return [], "", "", "", ""
+    return [], "", "", "", "", ""
 
 demo_profile = "config/demo.csv"
 with gr.Blocks() as demo:
@@ -73,34 +100,38 @@ with gr.Blocks() as demo:
             "Elon Musk Gets a Crash Course in How Trumpworld Works",
             "Enjoy the GST break on those Christmas gifts, kids — you’ll still be paying it back long after Justin Trudeau is gone",
             "A Very Veggie Thanksgiving",
-            "Explore Your Roots: How to Plan a Family Heritage Trip"
+            "Explore Your Roots: How to Plan a Family Heritage Trip",
+            "Dodgers Capture World Series by Storming Back in Game 5"
         ],
         label="Choose an article to summarize:",
     )
     articles.change(choose_article, articles)
     gr.Markdown("&nbsp;" * 10)
 
-    # Generate the zero-shot summary
-    generate_initial_summary_button = gr.Button("1. Generate a Summary")
-    initial_summary = gr.Textbox(label="Zero-Shot Summary:")
-    generate_initial_summary_button.click(generate_zero_shot_summary, inputs=None, outputs=initial_summary)
+    # Get the personalized summary!
+    get_personalized_summary_button = gr.Button("Get Your Personalized Summary")
+
+    with gr.Tab("Main Output"):
+        status_textbox = gr.Textbox(label="Status Updates:", lines=10)
+        gr.Markdown("&nbsp;" * 10)
+        final_summary_textbox = gr.Textbox(label="Personalized Summary:", lines=5)
+        gr.Markdown("&nbsp;" * 10)
+        keyphrases_textbox = gr.Textbox(label="Extracted Keyphrases:", lines=6)
+
+    with gr.Tab("Full Agentic Conversation"):
+        debug_textbox = gr.Textbox(label="", lines=20)
+
+    get_personalized_summary_button.click(get_personalized_summary, inputs=None, outputs=[status_textbox, debug_textbox, final_summary_textbox, keyphrases_textbox])
+
+    # Soft Reset
+    gr.Markdown("&nbsp;" * 10)
+    soft_reset_button = gr.Button("Reset All Fields but Keep User Data")
+    soft_reset_button.click(soft_reset, inputs=None, outputs=[status_textbox, debug_textbox, final_summary_textbox, keyphrases_textbox])
     gr.Markdown("&nbsp;" * 10)
 
-    # Get the feedback (and show it)
-    get_feedback_button = gr.Button("2. Get Persona Feedback")
-    feedback = gr.Textbox(label="Persona Feedback:")
-    get_feedback_button.click(get_feedback, inputs=initial_summary, outputs=feedback)
-    gr.Markdown("&nbsp;" * 10)
-
-    # Get the refined summary
-    get_refined_summary_button = gr.Button("3. Refine the Summary")
-    refined_summary = gr.Textbox(label="Refined Summary:")
-    get_refined_summary_button.click(generate_refined_summary, inputs=feedback, outputs=refined_summary)
-    gr.Markdown("&nbsp;" * 10)
-
-    # Reset button to go again
-    reset_button = gr.Button("Reset All Fields")
-    reset_button.click(reset_form, inputs=None, outputs=[interests, articles, initial_summary, feedback, refined_summary])
+    # Hard Reset
+    reset_button = gr.Button("Reset All Fields and Clear User Data")
+    reset_button.click(reset_form, inputs=None, outputs=[interests, articles, status_textbox, debug_textbox, final_summary_textbox, keyphrases_textbox])
     gr.Markdown("&nbsp;" * 10)
 
 demo.launch()

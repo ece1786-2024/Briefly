@@ -289,9 +289,10 @@ class PersonalizationAgent(Agent): # Personalization Agent
 #################################################   WIP    #################################################
 
 class ArbiterAgent(Agent): # Arbiter Agent
-    def __init__(self):
+    def __init__(self, profile_file="profile.csv"):
         super().__init__("Arbiter Agent")
-        self.profile = self.load_profile()
+        self.profile_file = profile_file
+        self.profile = self.load_profile(profile_file)
     
     def check_truth(self, article, summary):
         # Check for preservation of truth/facts
@@ -329,13 +330,17 @@ class ArbiterAgent(Agent): # Arbiter Agent
                 profile[keyword] = metadata  # Update or add new keyphrases
 
             # Write the updated profile to a CSV
-            profile_file = os.path.join(Agent.config_folder, "profile.csv")
+            if self.profile_file == "profile.csv":
+                profile_file = os.path.join(Agent.config_folder, "profile.csv")
+            else:
+                profile_file = self.profile_file
             with open(profile_file, mode='w', newline='', encoding='utf-8') as file:
                 writer = csv.DictWriter(file, fieldnames=['Keyphrase', 'Level', 'Date'])
                 writer.writeheader()
                 for keyword, metadata in profile.items():
                     writer.writerow({
-                        "Keyphrase": metadata.get("Keyphrase", keyword),
+                        #"Keyphrase": metadata.get("Keyphrase", keyword),
+                        "Keyphrase": keyword,
                         "Level": "",#metadata.get("Level", "Unknown"),
                         "Date": datetime.datetime.now().strftime("%Y-%m-%d")
                     })
@@ -433,10 +438,10 @@ class ArbiterAgent(Agent): # Arbiter Agent
                 keyphrases = self.generate_keyphrases(summary) # generates keyphrases from articles/summary
 
                 self.update_profile(self.profile, keyphrases) # checks and updates profile.csv
-                return summary
+                return summary, bias_rating, keyphrases
             else:
                 self.logger.warning("Summary needs revision: %s", feedback)
                 # return something that forces the model to restart??
         
         self.logger.warning("No acceptable summary found. Restart.")
-        return None
+        return None, None, None

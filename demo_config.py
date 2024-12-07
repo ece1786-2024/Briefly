@@ -523,6 +523,50 @@ You can upload photos, along with explanatory notes, of what you find on your jo
 Finally, consider videotaping or recording your conversations with relatives you find (but remember to ask permission, because local laws can vary). You may just be creating a valuable record for the next generation of heritage travelers.
 '''
 
+baseball_article = '''
+Dodgers capture World Series by storming back in Game 5 to upend Yankees: Takeaways
+
+NEW YORK — The Los Angeles Dodgers will finally get their parade. Four years after winning a championship during a pandemic, they are back atop the baseball world and ready to celebrate.
+
+Trailing by five runs early in Game 5 of the World Series on Wednesday, the Dodgers capitalized on a series of errors and misplays by the New York Yankees, storming to a 7-6 victory at Yankee Stadium. It is their eighth championship in franchise history and first since 2020, when they could not hold a parade because of pandemic restrictions.
+
+Freddie Freeman, who tied a World Series record with 12 runs batted in, drove in the tying runs in a five-run rally in the fifth, after errors by Aaron Judge and Anthony Volpe and a critical blunder by Gerrit Cole, who failed to cover the bag on a grounder to first that should have ended the inning.
+
+Mookie Betts, who hit that grounder, later brought in the winning run with a sacrifice fly in the eighth inning. Walker Buehler, who started and won Game 3, finished off the Yankees with his first career save, fanning Alex Verdugo for the final out.
+
+The Dodgers’ relentlessness pays off
+The biggest threat in the Dodgers lineup is not the hitters’ ability to knock the ball out of the ballpark. It is their ability to wear down opposing pitching staffs and create cracks to slip through. The Dodgers got their looks against the Yankees in this series, even if there were times when they struggled to capitalize. It took the Yankees fumbling on defense in the fifth inning just to allow the Dodgers back into Game 5.
+
+The tax came due on New York’s bullpen on Wednesday. Clay Holmes, pitching for the fifth time in five games this series, managed a scoreless seventh inning. When the door swung again for Tommy Kahnle and Luke Weaver in the eighth inning, the Yankees could no longer cling to their advantage.
+
+A leadoff single for Kiké Hernández. An infield single for Tommy Edman. A walk for Will Smith. Then the Yankees’ inability to generate swing-and-miss allowed the Dodgers to cash in. Gavin Lux worked a full count before lofting a game-tying sacrifice fly to center. After a catcher’s interference sent Shohei Ohtani to first base to load the bases again, Betts jumped on the first pitch he saw from Weaver for a sacrifice fly that put the Dodgers ahead for good, 7-6. They simply would not go away.
+
+Yankees embarrass themselves in fifth inning
+There have been several instances throughout the season when the Yankees have lost all semblance of basic fundamentals, whether due to base-running mistakes, defensive errors or mental lapses.
+
+The lack of fundamentals showed up at the worst time for the Yankees. Cole was cruising until the fifth inning when the defense collapsed. Judge dropped a line drive hit directly at him; he closed his glove too early, and the ball dropped to the ground. Will Smith, the next Dodgers batter, hit a groundball into the hole to Volpe, who ranged to his right. Volpe tried to get the force out at third base but threw the ball in the dirt to Jazz Chisholm Jr., who could not scoop it. With the bases loaded, Betts then hit a soft ground ball to Anthony Rizzo, who did not charge the ball hard enough, and Cole forgot to cover first base.
+
+According to STATS, this was the second time in postseason history that a team blew a five-plus run lead with all of the runs being unearned. The previous time came in the 1956 World Series when the Yankees blew a five-run lead against the Brooklyn Dodgers in Game 2.
+
+Cole’s need for six outs to escape the fifth inning led to the Dodgers scoring five runs, tying the score at 5-5. It was an embarrassing and inexcusable display of baseball from the Yankees.
+
+The downside of the Dodgers’ bullpen game in Game 4
+The Dodgers’ handling of Game 4 was not illogical in a vacuum. They had a 3-0 lead series lead. Their top relievers had been used heavily in those games. Despite Game 4 being winnable — the Dodgers trailed by a run in the sixth, and two entering the bottom of the eighth — manager Dave Roberts said he had no qualms about how he handled the situation. Whoever he would have used would not be an option for a Game 5 and Jack Flaherty has already struggled on regular rest this October.
+
+The clear downside played out on Wednesday. Flaherty had no semblance of command and got booted out before the Dodgers would have even had a chance to pivot to their top relief arms. A Yankees lineup that had not slugged all series broke open in the eighth inning of Game 4 and carried that into the early stages of Game 5.
+
+Early assault
+The Yankees jumped out to what looked like a commanding 5-0 lead largely because Cole cruised early. And because his offense flexed some muscle in a way it hasn’t all playoffs.
+
+First-inning homers from Judge (two-run) and Chisholm, an RBI single from Verdugo and Giancarlo Santon’s solo shot in the third provided Cole a sweet cushion.
+
+Judge broke open the scoring with a bomb to right-center field, bringing in Juan Soto, who had walked with one out. Yankee Stadium went wild as he rounded the bases, perhaps flushing what had been a weak postseason performance to this point in a career filled with them. Judge crushed a middle-middle first-pitch fastball —the type of pitch he had been missing for weeks. Chisholm’s seemed like icing on the cake. He smoked a home run well over the wall in right field, posing the millisecond it left his bat.
+
+In the second inning, Volpe continued his hot hitting, ripping a double down the left-field line before moving to third on a groundout and scoring when Verdugo lined a single to right. The Yankees actually loaded the bases with two outs for Chisholm, but he couldn’t beat out a weak tapper to first base.
+
+Stanton led off the third inning by homering off the first pitch from reliever Anthony Banda — a fastball chest high and out over the plate, which allowed the DH to extend his mighty arms and hit one well over the wall in right.
+'''
+
 demo_keywords = {
     "World News": world_news_keywords,
     "U.S. Politics": politics_keywords,
@@ -546,5 +590,6 @@ demo_articles = {
     "Enjoy the GST break on those Christmas gifts, kids — you’ll still be paying it back long after Justin Trudeau is gone": canada_article,
     "A Very Veggie Thanksgiving": food_article,
     "Explore Your Roots: How to Plan a Family Heritage Trip": travel_article,
+    "Dodgers Capture World Series by Storming Back in Game 5": baseball_article,
     "": None,
 }
